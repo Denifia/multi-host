@@ -1,6 +1,6 @@
-use iced::widget::{column, container, row, text};
+use iced::widget::{button, column, container, row, text};
 use iced::Length::{Fill, FillPortion};
-use iced::{Element, Length, Task, Theme};
+use iced::{Element, Task, Theme};
 
 fn main() -> iced::Result {
     iced::application("Multi-Host", MultiHost::update, MultiHost::view)
@@ -10,6 +10,12 @@ fn main() -> iced::Result {
 
 #[derive(Debug)]
 struct MultiHost {
+    hosted_processes: Vec<HostedProcess>,
+}
+
+#[derive(Debug)]
+struct HostedProcess {
+    name: String,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -18,7 +24,13 @@ enum Message {
 
 impl MultiHost {
     fn new() -> Self {
-        Self { }
+        Self { 
+            hosted_processes: vec![
+                HostedProcess {
+                    name: "Process 1".to_owned(),
+                }
+            ]
+        }
     }
 
     // fn subscribe() -> Task<Message> {
@@ -37,14 +49,25 @@ impl MultiHost {
             .style(container::rounded_box)
             .padding(10);
 
-        let right_pane_text = text("right pane");
+        let right_pane_text = text("right pane")
+            .width(Fill)
+            .height(Fill);
         let right_pane = container(right_pane_text)
             .width(FillPortion(4))
             .height(Fill)
             .padding(10);
 
-        let left_pane_text = text("left pane");
-        let left_pane = container(left_pane_text)
+        let processes: Vec<iced::Element<Message>>  = self.hosted_processes
+            .iter()
+            .map(|process| {
+                button(process.name.as_str())
+                .style(button::secondary)
+                .width(Fill)
+                .into()
+            })
+            .collect();
+        let process_list = iced::widget::Column::with_children(processes);
+        let left_pane = container(process_list)
             .width(FillPortion(1))
             .height(Fill)
             .style(container::rounded_box)
