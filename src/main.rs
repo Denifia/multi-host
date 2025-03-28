@@ -1,7 +1,8 @@
-use iced::widget::{button, column, container, row, text};
-use iced::Length::{Fill, FillPortion};
 use iced::{Element, Task, Theme};
+use screens::home::HomeScreen;
+use screens::settings::SettingsScreen;
 
+mod screens;
 fn main() -> iced::Result {
     iced::application("Multi-Host", MultiHost::update, MultiHost::view)
         .theme(MultiHost::theme)
@@ -10,91 +11,53 @@ fn main() -> iced::Result {
 
 #[derive(Debug)]
 struct MultiHost {
-    hosted_processes: Vec<HostedProcess>,
+    current_screen: Screen,
+    home_screen: HomeScreen,
+    settings_screen: SettingsScreen
 }
 
-#[derive(Debug)]
-struct HostedProcess {
-    name: String,
+#[derive(Debug, PartialEq, Clone)]
+enum Screen {
+    Home,
+    Settings,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Message {
+    ChangeScreen(Screen),
+    SaveSettings,
+    SettingsSettingOneUpdated(String)
 }
 
 impl MultiHost {
     fn new() -> Self {
         Self { 
-            hosted_processes: vec![
-                HostedProcess {
-                    name: "Process 1".to_owned(),
-                }
-            ]
+            current_screen: Screen::Home,
+            home_screen: HomeScreen::new(),
+            settings_screen: SettingsScreen::new(),
         }
     }
 
     // fn subscribe() -> Task<Message> {
     // }
 
-    fn update(&mut self, _message: Message) -> Task<Message> {
-        //match message { }
-        Task::none()
+    fn update(&mut self, message: Message) -> Task<Message> {
+        match message  {
+            Message::ChangeScreen(screen) => {
+                self.current_screen = screen;
+
+                Task::none()
+            }
+            Message::SettingsSettingOneUpdated(_) |
+            Message::SaveSettings => self.settings_screen.update(message),
+        }
     }
 
     fn view(&self) -> Element<Message> {
-
-        let top_pane_text = text("top pane");
-        let top_pane = container(top_pane_text)
-            .width(Fill)
-            .style(container::rounded_box)
-            .padding(10);
-
-        let right_pane_text = text("right pane")
-            .width(Fill)
-            .height(Fill);
-        let right_pane = container(right_pane_text)
-            .width(FillPortion(4))
-            .height(Fill)
-            .padding(10);
-
-        let processes: Vec<iced::Element<Message>>  = self.hosted_processes
-            .iter()
-            .map(|process| {
-                button(process.name.as_str())
-                .style(button::secondary)
-                .width(Fill)
-                .into()
-            })
-            .collect();
-        let process_list = iced::widget::Column::with_children(processes);
-        let left_pane = container(process_list)
-            .width(FillPortion(1))
-            .height(Fill)
-            .style(container::rounded_box)
-            .padding(10);
-
-        let middle_pane = row!(left_pane, right_pane)
-            .width(Fill)
-            .height(Fill)
-            .spacing(10);
-
-        let bottom_pane_text = text("bottom pane");
-        let bottom_pane = container(bottom_pane_text)
-            .width(Fill)
-            .style(container::rounded_box)
-            .padding(10);
-
-        let all_panes = column![top_pane, middle_pane, bottom_pane]
-            .spacing(3);
-
-        let main_window = container(all_panes)
-            .center_x(Fill)
-            .center_y(Fill)
-            .width(Fill)
-            .height(Fill);
-
-        container(main_window)
-            .into()
+        match self.current_screen {
+            Screen::Home => return self.home_screen.view(),
+            Screen::Settings => return self.settings_screen.view(),
+        }
     }
 
     fn theme(&self) -> Theme {
