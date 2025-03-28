@@ -55,8 +55,8 @@ impl MultiHost {
 
     fn view(&self) -> Element<Message> {
         match self.current_screen {
-            Screen::Home => return self.home_screen.view(),
-            Screen::Settings => return self.settings_screen.view(),
+            Screen::Home => self.home_screen.view(),
+            Screen::Settings => self.settings_screen.view(),
         }
     }
 

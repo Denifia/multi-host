@@ -22,6 +22,7 @@ impl SettingsScreen {
             Message::SaveSettings => {
                 // todo - save the setting to disk
                 self.is_dirty = false;
+
                 Task::none()
             },
             Message::SettingsSettingOneUpdated(value) => {
@@ -30,7 +31,7 @@ impl SettingsScreen {
 
                 Task::none()
             }
-            _ => return Task::none(),
+            _ => Task::none(),
         }
     }
 
@@ -39,12 +40,12 @@ impl SettingsScreen {
             .style(button::secondary)
             .on_press(Message::ChangeScreen(Screen::Home));
 
-        let on_press: Option<Message>;
-        if self.is_dirty {
-            on_press = Some(Message::SaveSettings);
+        let on_press = if self.is_dirty {
+            Some(Message::SaveSettings)
         } else {
-            on_press = None;
-        }
+            None
+        };
+
         let save_button = button("Save")
             .style(button::primary)
             .on_press_maybe(on_press);
