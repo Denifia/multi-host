@@ -1,16 +1,17 @@
 use iced::widget::{button, column, container, row, text};
-use iced::Element;
+use iced::{Element, Task};
 use iced::Length::{Fill, FillPortion};
 use crate::{Message, Screen};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct HomeScreen {
     hosted_processes: Vec<HostedProcess>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct HostedProcess {
     name: String,
+    output: String,
 }
 
 impl HomeScreen {
@@ -19,8 +20,20 @@ impl HomeScreen {
             hosted_processes: vec![
                 HostedProcess {
                     name: "Process 1".to_owned(),
+                    output: String::new(),
                 }
             ],
+        }
+    }
+
+    pub fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::ProcessOutput(output) => {
+                self.hosted_processes[0].output = format!("{}\n{}", self.hosted_processes[0].output, output);
+                
+                Task::none()
+            },
+            _ => Task::none(),
         }
     }
 
@@ -32,7 +45,7 @@ impl HomeScreen {
             .style(container::rounded_box)
             .padding(10);
 
-        let right_pane_text = text("right pane");
+        let right_pane_text = text(self.hosted_processes[0].output.clone());
         let right_pane = container(right_pane_text)
             .width(FillPortion(4))
             .height(Fill)

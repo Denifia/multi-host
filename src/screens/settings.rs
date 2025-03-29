@@ -3,7 +3,7 @@ use iced::{Element, Task};
 use iced::Length::Fill;
 use crate::{Message, Screen};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SettingsScreen {
     setting_one: String,
     is_dirty: bool,
