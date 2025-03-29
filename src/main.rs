@@ -1,8 +1,11 @@
+#![windows_subsystem = "windows"]
+
 use iced::{Element, Task, Theme};
 use screens::home::HomeScreen;
 use screens::settings::SettingsScreen;
 
 mod screens;
+
 fn main() -> iced::Result {
     iced::application("Multi-Host", MultiHost::update, MultiHost::view)
         .theme(MultiHost::theme)
