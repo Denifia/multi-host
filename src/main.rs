@@ -2,7 +2,7 @@
 
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
-use std::{env, thread};
+use std::{env, fmt, thread};
 use iced::futures::executor::block_on;
 use iced::futures::{SinkExt, Stream};
 use iced::{Element, Subscription, Task, Theme};
@@ -20,18 +20,31 @@ fn main() -> iced::Result {
 
 fn start_process()  -> impl Stream<Item = Message> {
     iced::stream::channel(100, |mut output| async move {
+        let channel_error = "channel send failed";
+
         // todo - the process path with come from config
-        let working_directory = env::current_dir()
-            .expect("didn't get current_dir");
-        let process_path = working_directory.join("example-process");
+        let process_path = env::current_dir()
+            .and_then(|mut dir| {
+                dir.push("example-process");
+                Ok(dir)
+            });
+        
+        if process_path.is_err() {
+            // todo - I'd love to have this control flow in '.or_else' but 
+            // that method doesn't appear to work with async
+            output.send(Message::ProcessOutput(format!("process path error: {:?}", process_path.unwrap_err()))).await
+                .expect(channel_error);
+            return;
+        }
+
         let mut cmd = Command::new("cargo");
-        cmd.args(["run", "-q", "--", "--throw"]).current_dir(&process_path);
+        cmd.args(["run", "-q", "--", "--throw"]).current_dir(&process_path.unwrap());
 
         // todo - make sure the child process is correctly cleanup up on multi-host exit
         //cmd.kill_on_drop(true); 
 
         output.send(Message::ProcessOutput("Spawning child process..".to_owned())).await
-            .expect("failed to send message");
+            .expect(channel_error);
 
         // Make sure the child process get's it's own pipes for stdio. If we don't 
         // do this, the child processes io is piped to the parents - we don't want that.
@@ -55,7 +68,7 @@ fn start_process()  -> impl Stream<Item = Message> {
             let status = child.wait()
                 .expect("child process encountered an error");
             exit_output.send(Message::ProcessOutput(format!("process exited with code {}", status))).await
-                .expect("couldn't send process exit code to channel");
+                .expect(channel_error);
         }));
 
         // todo - again this should likely be a Task, not a Thread
@@ -65,7 +78,7 @@ fn start_process()  -> impl Stream<Item = Message> {
             // todo - this just throws when the stdout ends. Find a better way.
             while let Ok(line) = reader.next().expect("reading stdout failed") {
                 stdout_output.send(Message::ProcessOutput(line)).await
-                    .expect("couldn't send stdout to channel")
+                    .expect(channel_error)
             }
         }));
     })
@@ -132,5 +145,24 @@ impl MultiHost {
 
     fn theme(&self) -> Theme {
         Theme::Dark
+    }
+}
+
+#[derive(Debug)]
+enum MultiHostError {
+    Iced(iced::Error),
+} 
+
+impl From<iced::Error> for MultiHostError {
+    fn from(err: iced::Error) -> MultiHostError {
+        MultiHostError::Iced(err)
+    }
+}
+
+impl fmt::Display for MultiHostError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            MultiHostError::Iced(ref err) => write!(f, "Iced error: {}", err),
+        }
     }
 }
