@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use iced::widget::{button, column, container, row, text};
 use iced::{Element, Task};
 use iced::Length::{Fill, FillPortion};
@@ -31,7 +32,8 @@ impl HomeScreen {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::ProcessOutput(output) => {
-                self.hosted_processes[0].output = format!("{}\n{}", self.hosted_processes[0].output, output);
+                writeln!(self.hosted_processes[0].output, "{}", output)
+                    .expect("appending output failed");
                 
                 Task::none()
             },
