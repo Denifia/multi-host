@@ -11,7 +11,9 @@ pub struct HomeScreen {
 #[derive(Debug)]
 struct HostedProcess {
     name: String,
-    output: String,
+
+    // todo - this should be a constrained buffer of some kind
+    output: String, 
 }
 
 impl HomeScreen {
