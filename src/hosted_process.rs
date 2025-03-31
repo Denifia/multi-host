@@ -49,9 +49,9 @@ impl HostedProcess {
             let channel_error = "channel send failed";
 
             // todo - the process path with come from config
-            let process_path = env::current_dir().and_then(|mut dir| {
+            let process_path = env::current_dir().map(|mut dir| {
                 dir.push("example-process");
-                Ok(dir)
+                dir
             });
 
             if process_path.is_err() {
@@ -69,7 +69,7 @@ impl HostedProcess {
 
             let mut cmd = Command::new("cargo");
             cmd.args(["run", "-q", "--", "--forever"])
-                .current_dir(&process_path.unwrap());
+                .current_dir(process_path.unwrap());
 
             // todo - make sure the child process is correctly cleanup up on multi-host exit
             //cmd.kill_on_drop(true);
