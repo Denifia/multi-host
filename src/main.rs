@@ -1,9 +1,11 @@
-#![windows_subsystem = "windows"]
+//#![windows_subsystem = "windows"]
+// Uncomment the above before release. Prevents stupid console window.
 
-use iced::{Element, Subscription, Task, Theme};
+use iced::{Element, Subscription, Task, Theme, futures::channel::mpsc::Sender};
 use screens::home::HomeScreen;
 use screens::settings::SettingsScreen;
-use std::fmt;
+use std::io;
+use thiserror::Error;
 
 mod hosted_process;
 mod screens;
@@ -20,6 +22,7 @@ struct MultiHost {
     current_screen: Screen,
     home_screen: HomeScreen,
     settings_screen: SettingsScreen,
+    output_listener: Option<Sender<Message>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -35,6 +38,7 @@ enum Message {
     SettingsSettingOneUpdated(String),
     ProcessOutput(String),
     StartStopProcess(),
+    ListeningForOutput(Sender<Message>),
 }
 
 impl MultiHost {
@@ -43,26 +47,27 @@ impl MultiHost {
             current_screen: Screen::Home,
             home_screen: HomeScreen::new(),
             settings_screen: SettingsScreen::new(),
+            output_listener: None,
         }
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            // Screen navigation
             Message::ChangeScreen(screen) => {
                 self.current_screen = screen;
-
                 Task::none()
             }
-
-            // Home Screen
-            Message::StartStopProcess() | Message::ProcessOutput(_) => {
-                self.home_screen.update(message)
-            }
-
-            // Settings Screen
+            Message::StartStopProcess() => match &self.output_listener {
+                Some(listener) => self.home_screen.start_stop(listener),
+                None => panic!("oh no"),
+            },
+            Message::ProcessOutput(_) => self.home_screen.update(message),
             Message::SettingsSettingOneUpdated(_) | Message::SaveSettings => {
                 self.settings_screen.update(message)
+            }
+            Message::ListeningForOutput(sender) => {
+                self.output_listener = Some(sender);
+                Task::none()
             }
         }
     }
@@ -84,21 +89,14 @@ impl MultiHost {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 enum MultiHostError {
-    Iced(iced::Error),
-}
+    #[error("Iced error: {0}")]
+    Iced(#[from] iced::Error),
 
-impl From<iced::Error> for MultiHostError {
-    fn from(err: iced::Error) -> MultiHostError {
-        MultiHostError::Iced(err)
-    }
-}
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
 
-impl fmt::Display for MultiHostError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            MultiHostError::Iced(ref err) => write!(f, "Iced error: {}", err),
-        }
-    }
+    #[error("Simple error: `{0}`")]
+    Simple(String),
 }

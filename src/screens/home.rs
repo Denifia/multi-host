@@ -1,6 +1,7 @@
 use crate::hosted_process::ProcessStatus;
 use crate::{Message, Screen, hosted_process::HostedProcess};
 use iced::Length::{Fill, FillPortion};
+use iced::futures::channel::mpsc::Sender;
 use iced::widget::{button, column, container, row, text};
 use iced::{Element, Subscription, Task};
 use std::fmt::Write;
@@ -17,6 +18,22 @@ impl HomeScreen {
         }
     }
 
+    pub fn start_stop(&mut self, sender: &Sender<Message>) -> Task<Message> {
+        let process = &mut self.hosted_processes[0];
+
+        match process.status {
+            ProcessStatus::NotRun | ProcessStatus::Stopped => match process.start(sender.clone()) {
+                Ok(_) => process.status = ProcessStatus::Running,
+                Err(_) => writeln!(process.output, "error starting process").unwrap(),
+            },
+            ProcessStatus::Running => {
+                process.status = ProcessStatus::Stopped;
+            }
+        };
+
+        Task::none()
+    }
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::ProcessOutput(line) => {
@@ -25,26 +42,14 @@ impl HomeScreen {
 
                 Task::none()
             }
-            Message::StartStopProcess() => {
-                let process = &mut self.hosted_processes[0];
-
-                match process.status {
-                    ProcessStatus::NotRun | ProcessStatus::Stopped => {
-                        process.status = ProcessStatus::Running;
-                    }
-                    ProcessStatus::Running => {
-                        process.status = ProcessStatus::Stopped;
-                    }
-                };
-
-                Task::none()
-            }
             _ => Task::none(),
         }
     }
 
     pub fn subscription(&self) -> Vec<Subscription<Message>> {
-        vec![Subscription::run(HostedProcess::start_process)]
+        vec![Subscription::run(
+            HostedProcess::subscribe_to_process_outputs,
+        )]
     }
 
     pub fn view(&self) -> Element<Message> {
