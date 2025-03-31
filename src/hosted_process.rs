@@ -45,31 +45,29 @@ impl HostedProcess {
 
     pub fn start_process() -> impl Stream<Item = Message> {
         iced::stream::channel(100, |mut output| async move {
-            println!("start_process entered");
             let channel_error = "channel send failed";
 
             // todo - the process path with come from config
-            let process_path = env::current_dir().map(|mut dir| {
+            let process_path = match env::current_dir().map(|mut dir| {
                 dir.push("example-process");
                 dir
-            });
-
-            if process_path.is_err() {
-                // todo - I'd love to have this control flow in '.or_else' but
-                // that method doesn't appear to work with async
-                output
-                    .send(Message::ProcessOutput(format!(
-                        "process path error: {:?}",
-                        process_path.unwrap_err()
-                    )))
-                    .await
-                    .expect(channel_error);
-                return;
-            }
+            }) {
+                Ok(path) => path,
+                Err(err) => {
+                    output
+                        .send(Message::ProcessOutput(format!(
+                            "process path error: {:?}",
+                            err
+                        )))
+                        .await
+                        .expect(channel_error);
+                    return;
+                }
+            };
 
             let mut cmd = Command::new("cargo");
             cmd.args(["run", "-q", "--", "--forever"])
-                .current_dir(process_path.unwrap());
+                .current_dir(process_path);
 
             // todo - make sure the child process is correctly cleanup up on multi-host exit
             //cmd.kill_on_drop(true);
