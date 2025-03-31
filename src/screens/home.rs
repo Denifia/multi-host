@@ -1,44 +1,53 @@
 use std::fmt::Write;
 use iced::widget::{button, column, container, row, text};
-use iced::{Element, Task};
+use iced::{Element, Subscription, Task};
 use iced::Length::{Fill, FillPortion};
-use crate::{Message, Screen};
+use crate::hosted_process::ProcessStatus;
+use crate::{Message, Screen,hosted_process::HostedProcess};
 
 #[derive(Debug)]
 pub struct HomeScreen {
-    hosted_processes: Vec<HostedProcess>,
-}
-
-#[derive(Debug)]
-struct HostedProcess {
-    name: String,
-
-    // todo - this should be a constrained buffer of some kind
-    output: String, 
+    pub hosted_processes: Vec<HostedProcess>,
 }
 
 impl HomeScreen {
     pub fn new() -> Self {
         Self {
             hosted_processes: vec![
-                HostedProcess {
-                    name: "Process 1".to_owned(),
-                    output: String::new(),
-                }
+                HostedProcess::new("process one".to_owned()),
             ],
         }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::ProcessOutput(output) => {
-                writeln!(self.hosted_processes[0].output, "{}", output)
+            Message::ProcessOutput(line) => {
+                writeln!(self.hosted_processes[0].output, "{}", line)
                     .expect("appending output failed");
                 
                 Task::none()
             },
+            Message::StartStopProcess() => {
+                let process = &mut self.hosted_processes[0];
+    
+                match process.status {
+                    ProcessStatus::NotRun |
+                    ProcessStatus::Stopped => {
+                        process.status = ProcessStatus::Running;
+                    },
+                    ProcessStatus::Running => {
+                        process.status = ProcessStatus::Stopped;
+                    },
+                };
+
+                Task::none()
+            }
             _ => Task::none(),
         }
+    }
+
+    pub fn subscription(&self) -> Vec<Subscription<Message>> {
+        vec![Subscription::run(HostedProcess::start_process)]
     }
 
     pub fn view(&self) -> Element<Message> {
@@ -59,9 +68,10 @@ impl HomeScreen {
             .iter()
             .map(|process| {
                 button(process.name.as_str())
-                .style(button::secondary)
-                .width(Fill)
-                .into()
+                    .style(button::primary)
+                    .width(Fill)
+                    .on_press(Message::StartStopProcess())
+                    .into()
             })
             .collect();
         let process_list = iced::widget::Column::with_children(processes);
