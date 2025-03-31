@@ -1,12 +1,12 @@
 #![windows_subsystem = "windows"]
 
-use std::fmt;
 use iced::{Element, Subscription, Task, Theme};
 use screens::home::HomeScreen;
 use screens::settings::SettingsScreen;
+use std::fmt;
 
-mod screens;
 mod hosted_process;
+mod screens;
 
 fn main() -> iced::Result {
     iced::application("Multi-Host", MultiHost::update, MultiHost::view)
@@ -39,7 +39,7 @@ enum Message {
 
 impl MultiHost {
     fn new() -> Self {
-        Self { 
+        Self {
             current_screen: Screen::Home,
             home_screen: HomeScreen::new(),
             settings_screen: SettingsScreen::new(),
@@ -47,7 +47,7 @@ impl MultiHost {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
-        match message  {
+        match message {
             // Screen navigation
             Message::ChangeScreen(screen) => {
                 self.current_screen = screen;
@@ -56,12 +56,14 @@ impl MultiHost {
             }
 
             // Home Screen
-            Message::StartStopProcess() |
-            Message::ProcessOutput(_) => self.home_screen.update(message),
+            Message::StartStopProcess() | Message::ProcessOutput(_) => {
+                self.home_screen.update(message)
+            }
 
             // Settings Screen
-            Message::SettingsSettingOneUpdated(_) |
-            Message::SaveSettings => self.settings_screen.update(message),
+            Message::SettingsSettingOneUpdated(_) | Message::SaveSettings => {
+                self.settings_screen.update(message)
+            }
         }
     }
 
@@ -85,7 +87,7 @@ impl MultiHost {
 #[derive(Debug)]
 enum MultiHostError {
     Iced(iced::Error),
-} 
+}
 
 impl From<iced::Error> for MultiHostError {
     fn from(err: iced::Error) -> MultiHostError {

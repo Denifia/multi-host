@@ -1,9 +1,9 @@
-use std::fmt::Write;
+use crate::hosted_process::ProcessStatus;
+use crate::{Message, Screen, hosted_process::HostedProcess};
+use iced::Length::{Fill, FillPortion};
 use iced::widget::{button, column, container, row, text};
 use iced::{Element, Subscription, Task};
-use iced::Length::{Fill, FillPortion};
-use crate::hosted_process::ProcessStatus;
-use crate::{Message, Screen,hosted_process::HostedProcess};
+use std::fmt::Write;
 
 #[derive(Debug)]
 pub struct HomeScreen {
@@ -13,9 +13,7 @@ pub struct HomeScreen {
 impl HomeScreen {
     pub fn new() -> Self {
         Self {
-            hosted_processes: vec![
-                HostedProcess::new("process one".to_owned()),
-            ],
+            hosted_processes: vec![HostedProcess::new("process one".to_owned())],
         }
     }
 
@@ -24,20 +22,19 @@ impl HomeScreen {
             Message::ProcessOutput(line) => {
                 writeln!(self.hosted_processes[0].output, "{}", line)
                     .expect("appending output failed");
-                
+
                 Task::none()
-            },
+            }
             Message::StartStopProcess() => {
                 let process = &mut self.hosted_processes[0];
-    
+
                 match process.status {
-                    ProcessStatus::NotRun |
-                    ProcessStatus::Stopped => {
+                    ProcessStatus::NotRun | ProcessStatus::Stopped => {
                         process.status = ProcessStatus::Running;
-                    },
+                    }
                     ProcessStatus::Running => {
                         process.status = ProcessStatus::Stopped;
-                    },
+                    }
                 };
 
                 Task::none()
@@ -51,8 +48,7 @@ impl HomeScreen {
     }
 
     pub fn view(&self) -> Element<Message> {
-        let settings_button = button("Settings")
-            .on_press(Message::ChangeScreen(Screen::Settings));
+        let settings_button = button("Settings").on_press(Message::ChangeScreen(Screen::Settings));
         let top_pane = container(settings_button)
             .width(Fill)
             .style(container::rounded_box)
@@ -64,7 +60,8 @@ impl HomeScreen {
             .height(Fill)
             .padding(10);
 
-        let processes: Vec<iced::Element<Message>>  = self.hosted_processes
+        let processes: Vec<iced::Element<Message>> = self
+            .hosted_processes
             .iter()
             .map(|process| {
                 button(process.name.as_str())
@@ -92,8 +89,7 @@ impl HomeScreen {
             .style(container::rounded_box)
             .padding(10);
 
-        let all_panes = column![top_pane, middle_pane, bottom_pane]
-            .spacing(3);
+        let all_panes = column![top_pane, middle_pane, bottom_pane].spacing(3);
 
         let main_window = container(all_panes)
             .center_x(Fill)
@@ -101,7 +97,6 @@ impl HomeScreen {
             .width(Fill)
             .height(Fill);
 
-        container(main_window)
-            .into()
+        container(main_window).into()
     }
 }

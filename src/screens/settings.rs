@@ -1,7 +1,7 @@
-use iced::widget::{button, container, row, column, text, text_input};
-use iced::{Element, Task};
-use iced::Length::Fill;
 use crate::{Message, Screen};
+use iced::Length::Fill;
+use iced::widget::{button, column, container, row, text, text_input};
+use iced::{Element, Task};
 
 #[derive(Debug)]
 pub struct SettingsScreen {
@@ -11,7 +11,7 @@ pub struct SettingsScreen {
 
 impl SettingsScreen {
     pub fn new() -> Self {
-        Self { 
+        Self {
             is_dirty: false,
             setting_one: "starting setting".to_owned(),
         }
@@ -24,7 +24,7 @@ impl SettingsScreen {
                 self.is_dirty = false;
 
                 Task::none()
-            },
+            }
             Message::SettingsSettingOneUpdated(value) => {
                 self.is_dirty = true;
                 self.setting_one = value;
@@ -49,22 +49,16 @@ impl SettingsScreen {
         let save_button = button("Save")
             .style(button::primary)
             .on_press_maybe(on_press);
-        
-        let buttons = row![back_button, save_button]
-            .spacing(50);
-        
-        let setting1_input = text_input("", &self.setting_one)
-            .on_input(Message::SettingsSettingOneUpdated);
-        let setting1 = row![text("Setting One"), setting1_input]
-            .spacing(50);
-        
-        let columns = column![buttons, setting1]
-            .padding(50)
-            .spacing(50);
 
-        let container = container(columns)
-            .width(Fill)
-            .height(Fill);
+        let buttons = row![back_button, save_button].spacing(50);
+
+        let setting1_input =
+            text_input("", &self.setting_one).on_input(Message::SettingsSettingOneUpdated);
+        let setting1 = row![text("Setting One"), setting1_input].spacing(50);
+
+        let columns = column![buttons, setting1].padding(50).spacing(50);
+
+        let container = container(columns).width(Fill).height(Fill);
 
         container.into()
     }
