@@ -15,6 +15,7 @@ pub struct HostedProcess {
 
     // todo - this should be a constrained buffer of some kind
     pub output: String,
+    pub display_name: String,
 }
 
 #[derive(Debug, PartialEq)]
@@ -26,32 +27,48 @@ pub enum ProcessStatus {
 
 impl fmt::Display for HostedProcess {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.display_name)
+    }
+}
+
+impl HostedProcess {
+    pub fn new(name: String) -> HostedProcess {
+        let mut s = Self {
+            name,
+            status: ProcessStatus::NotRun,
+            output: String::new(),
+            display_name: String::new(),
+        };
+        s.update_display_name();
+        s
+    }
+
+    fn update_display_name(&mut self) {
         let status = match self.status {
             ProcessStatus::NotRun => "not run",
             ProcessStatus::Running => "running",
             ProcessStatus::Stopped => "stopped",
         };
 
-        write!(f, "{} ({})", self.name, status)
+        self.display_name = format!("{} ({})", self.name, status);
     }
-}
 
-impl HostedProcess {
-    pub fn new(name: String) -> HostedProcess {
-        Self {
-            name,
-            status: ProcessStatus::NotRun,
-            output: String::new(),
-        }
+    pub fn run(&mut self) {
+        self.status = ProcessStatus::Running;
+        self.update_display_name();
+    }
+
+    pub fn stop(&mut self) {
+        self.status = ProcessStatus::Stopped;
+        self.update_display_name();
     }
 
     pub fn start(&self, sender: Sender<Message>) -> Result<(), MultiHostError> {
         // todo - the process path with come from config
-        let process_path = env::current_dir()
-            .map(|mut dir| {
-                dir.push("example-process");
-                dir
-            })?;
+        let process_path = env::current_dir().map(|mut dir| {
+            dir.push("example-process");
+            dir
+        })?;
 
         let mut cmd = Command::new("cargo");
         cmd.args(["run", "-q", "--", "--forever"])

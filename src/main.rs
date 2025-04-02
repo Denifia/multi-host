@@ -37,7 +37,7 @@ enum Message {
     SaveSettings,
     SettingsSettingOneUpdated(String),
     ProcessOutput(String),
-    StartStopProcess(),
+    StartStopProcess(usize),
     ListeningForOutput(Sender<Message>),
 }
 
@@ -57,8 +57,8 @@ impl MultiHost {
                 self.current_screen = screen;
                 Task::none()
             }
-            Message::StartStopProcess() => match &self.output_listener {
-                Some(listener) => self.home_screen.start_stop(listener),
+            Message::StartStopProcess(id) => match &self.output_listener {
+                Some(listener) => self.home_screen.start_stop(listener, id),
                 None => panic!("oh no"),
             },
             Message::ProcessOutput(_) => self.home_screen.update(message),

@@ -18,16 +18,16 @@ impl HomeScreen {
         }
     }
 
-    pub fn start_stop(&mut self, sender: &Sender<Message>) -> Task<Message> {
-        let process = &mut self.hosted_processes[0];
+    pub fn start_stop(&mut self, sender: &Sender<Message>, id: usize) -> Task<Message> {
+        let process = &mut self.hosted_processes[id];
 
         match process.status {
             ProcessStatus::NotRun | ProcessStatus::Stopped => match process.start(sender.clone()) {
-                Ok(_) => process.status = ProcessStatus::Running,
+                Ok(_) => process.run(),
                 Err(_) => writeln!(process.output, "error starting process").unwrap(),
             },
             ProcessStatus::Running => {
-                process.status = ProcessStatus::Stopped;
+                process.stop();
             }
         };
 
@@ -68,11 +68,12 @@ impl HomeScreen {
         let processes: Vec<iced::Element<Message>> = self
             .hosted_processes
             .iter()
-            .map(|process| {
-                button(process.name.as_str())
+            .enumerate()
+            .map(|(i, process)| {
+                button(process.display_name.as_str())
                     .style(button::primary)
                     .width(Fill)
-                    .on_press(Message::StartStopProcess())
+                    .on_press(Message::StartStopProcess(i))
                     .into()
             })
             .collect();
