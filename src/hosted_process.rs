@@ -2,7 +2,9 @@ use iced::futures::channel::mpsc::{self, Sender};
 use iced::futures::executor::block_on;
 use iced::futures::{SinkExt, Stream, StreamExt};
 use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 use std::{env, fmt, thread};
 
@@ -16,6 +18,7 @@ pub struct HostedProcess {
     // todo - this should be a constrained buffer of some kind
     pub output: String,
     pub display_name: String,
+    pub child: Option<Arc<Mutex<Child>>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -38,6 +41,7 @@ impl HostedProcess {
             status: ProcessStatus::NotRun,
             output: String::new(),
             display_name: String::new(),
+            child: None,
         };
         s.update_display_name();
         s
@@ -61,9 +65,18 @@ impl HostedProcess {
     pub fn stop(&mut self) {
         self.status = ProcessStatus::Stopped;
         self.update_display_name();
+
+        match self.child.as_ref() {
+            Some(c) => c
+                .lock()
+                .unwrap()
+                .kill()
+                .expect("child process should be killed"),
+            None => (),
+        }
     }
 
-    pub fn start(&self, sender: Sender<Message>) -> Result<(), MultiHostError> {
+    pub fn start(&mut self, sender: Sender<Message>) -> Result<(), MultiHostError> {
         // todo - the process path with come from config
         let process_path = env::current_dir().map(|mut dir| {
             dir.push("example-process");
@@ -84,6 +97,7 @@ impl HostedProcess {
         cmd.stdin(Stdio::piped());
 
         let mut child = cmd.spawn()?;
+
         let stdout = child
             .stdout
             .take()
@@ -91,17 +105,38 @@ impl HostedProcess {
 
         let mut exit_output = sender.clone();
 
+        let arc_child = Arc::new(Mutex::new(child));
+        let exit_child = Arc::clone(&arc_child);
+
         // Thread to wait on the exit of the child process
         thread::spawn(move || {
             block_on(async {
-                let status = child.wait().expect("child process encountered an error");
-                exit_output
-                    .send(Message::ProcessOutput(format!(
-                        "process exited with code {}",
-                        status
-                    )))
-                    .await
-                    .unwrap();
+                loop {
+                    let exit = {
+                        let mut a = exit_child.lock().unwrap();
+                        let e = a.try_wait();
+                        match e {
+                            Ok(s) => match s {
+                                Some(status) => {
+                                    exit_output
+                                        .send(Message::ProcessOutput(format!(
+                                            "process exited with code {}",
+                                            status
+                                        )))
+                                        .await
+                                        .unwrap();
+                                    Some(status)
+                                }
+                                None => None,
+                            },
+                            Err(_) => panic!("oh no"),
+                        }
+                    };
+                    match exit {
+                        Some(_) => break,
+                        None => thread::sleep(Duration::from_secs(1)),
+                    }
+                }
             })
         });
 
@@ -112,22 +147,26 @@ impl HostedProcess {
         thread::spawn(move || {
             block_on(async {
                 loop {
-                    match reader.next() {
-                        Some(result) => {
-                            stdout_output
-                                .send(Message::ProcessOutput(
-                                    result.unwrap_or_else(|e| e.to_string()),
-                                ))
-                                .await
-                                .unwrap();
-                        }
+                    let should_continue: bool = match reader.next() {
+                        Some(result) => stdout_output
+                            .send(Message::ProcessOutput(
+                                result.unwrap_or_else(|e| e.to_string()),
+                            ))
+                            .await
+                            .is_ok(),
                         None => {
                             thread::sleep(Duration::from_secs(1));
+                            true
                         }
+                    };
+                    if should_continue == false {
+                        break;
                     }
                 }
             })
         });
+
+        self.child = Some(arc_child);
 
         Ok(())
     }
