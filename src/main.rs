@@ -85,7 +85,7 @@ impl MultiHost {
     }
 
     fn theme(&self) -> Theme {
-        Theme::Dark
+        Theme::CatppuccinLatte
     }
 }
 

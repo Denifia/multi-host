@@ -99,7 +99,15 @@ impl HomeScreen {
         let bottom_pane_text = text("bottom pane");
         let bottom_pane = container(bottom_pane_text)
             .width(Fill)
-            .style(container::rounded_box)
+            .style(|_| container::Style {
+                background: Some(iced::Background::Color(iced::Color {
+                    r: 0.49,
+                    g: 0.27,
+                    b: 0.62,
+                    a: 1.00,
+                })),
+                ..Default::default()
+            })
             .padding(10);
 
         let all_panes = column![top_pane, middle_pane, bottom_pane].spacing(3);
