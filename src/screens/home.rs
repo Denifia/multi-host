@@ -24,7 +24,6 @@ impl HomeScreen {
     }
 
     pub fn start_stop(&mut self, process_id: usize, sender: &Sender<Message>) -> Task<Message> {
-        self.focused_process = process_id;
         let process = &mut self.hosted_processes[process_id];
 
         match process.status {
@@ -77,19 +76,25 @@ impl HomeScreen {
             .iter()
             .enumerate()
             .map(|(i, process)| {
-                button(process.display_name.as_str())
-                    .style(button::primary)
-                    .width(Fill)
-                    .on_press(Message::StartStopProcess(i))
-                    .into()
+                row![
+                    button(process.display_name.as_str())
+                        .style(button::primary)
+                        .width(Fill)
+                        .on_press(Message::FocusProcess(i)),
+                    button("start/stop")
+                        .style(button::danger)
+                        .on_press(Message::StartStopProcess(i))
+                ]
+                .into()
             })
             .collect();
         let process_list = iced::widget::Column::with_children(processes);
-        let left_pane = container(process_list)
-            .width(FillPortion(1))
-            .height(Fill)
-            .style(container::rounded_box)
-            .padding(10);
+        let left_pane = scrollable(
+            container(process_list)
+                .width(FillPortion(1))
+                .style(container::rounded_box)
+                .padding(0),
+        );
 
         let middle_pane = row!(left_pane, right_pane)
             .width(Fill)
@@ -119,5 +124,10 @@ impl HomeScreen {
             .height(Fill);
 
         container(main_window).into()
+    }
+
+    pub fn focus(&mut self, process_id: usize) -> Task<Message> {
+        self.focused_process = process_id;
+        Task::none()
     }
 }

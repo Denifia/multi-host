@@ -39,6 +39,7 @@ enum Message {
     ProcessOutput(usize, String),
     StartStopProcess(usize),
     ListeningForOutput(Sender<Message>),
+    FocusProcess(usize),
 }
 
 impl MultiHost {
@@ -61,6 +62,7 @@ impl MultiHost {
                 Some(listener) => self.home_screen.start_stop(process_id, listener),
                 None => panic!("oh no"),
             },
+            Message::FocusProcess(process_id) => self.home_screen.focus(process_id),
             Message::ProcessOutput(_, _) => self.home_screen.update(message),
             Message::SettingsSettingOneUpdated(_) | Message::SaveSettings => {
                 self.settings_screen.update(message)
