@@ -75,17 +75,8 @@ impl HomeScreen {
             .hosted_processes
             .iter()
             .enumerate()
-            .map(|(i, process)| {
-                row![
-                    button(process.display_name.as_str())
-                        .style(button::primary)
-                        .width(Fill)
-                        .on_press(Message::FocusProcess(i)),
-                    button("start/stop")
-                        .style(button::danger)
-                        .on_press(Message::StartStopProcess(i))
-                ]
-                .into()
+            .map(|(process_id, process)| {
+                process.to_element(process_id, process_id == self.focused_process)
             })
             .collect();
         let process_list = iced::widget::Column::with_children(processes);

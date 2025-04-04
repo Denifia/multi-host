@@ -1,6 +1,8 @@
+use iced::Length::Fill;
 use iced::futures::channel::mpsc::{self, Sender};
 use iced::futures::executor::block_on;
 use iced::futures::{SinkExt, Stream, StreamExt};
+use iced::widget::{button, row};
 use std::io::{BufRead, BufReader, Lines};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::Arc;
@@ -147,6 +149,30 @@ impl HostedProcess {
         self.child = Some(arc_child);
 
         Ok(())
+    }
+
+    pub fn to_element(&self, process_id: usize, is_focused: bool) -> iced::Element<Message> {
+        let action_button = match self.status {
+            ProcessStatus::NotRun | ProcessStatus::Stopped => button("start")
+                .style(button::success)
+                .on_press(Message::StartStopProcess(process_id)),
+            ProcessStatus::Running => button("stop")
+                .style(button::danger)
+                .on_press(Message::StartStopProcess(process_id)),
+        };
+        row![
+            match is_focused {
+                true => button(self.name.as_str())
+                    .style(button::primary)
+                    .width(Fill),
+                false => button(self.name.as_str())
+                    .style(button::primary)
+                    .width(Fill)
+                    .on_press(Message::FocusProcess(process_id)),
+            },
+            action_button
+        ]
+        .into()
     }
 
     async fn poll_for_std_output(
