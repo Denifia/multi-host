@@ -90,7 +90,11 @@ impl HostedProcess {
         })
     }
 
-    pub fn start(&mut self, sender: Sender<Message>) -> Result<(), MultiHostError> {
+    pub fn start(
+        &mut self,
+        process_id: usize,
+        sender: Sender<Message>,
+    ) -> Result<(), MultiHostError> {
         // todo - the process path with come from config
         let process_path = env::current_dir().map(|mut dir| {
             dir.push("example-process");
@@ -125,6 +129,7 @@ impl HostedProcess {
         // Thread to wait on the exit of the child process
         thread::spawn(move || {
             block_on(HostedProcess::poll_for_exit_code(
+                process_id,
                 exit_child,
                 &mut exit_sender,
             ));
@@ -133,6 +138,7 @@ impl HostedProcess {
         // Thread to read the stdout of the child process
         thread::spawn(move || {
             block_on(HostedProcess::poll_for_std_output(
+                process_id,
                 &mut BufReader::new(stdout).lines(),
                 &mut sender.clone(),
             ))
@@ -144,6 +150,7 @@ impl HostedProcess {
     }
 
     async fn poll_for_std_output(
+        process_id: usize,
         reader: &mut Lines<BufReader<ChildStdout>>,
         output: &mut Sender<Message>,
     ) {
@@ -151,6 +158,7 @@ impl HostedProcess {
             let should_continue: bool = match reader.next() {
                 Some(result) => output
                     .send(Message::ProcessOutput(
+                        process_id,
                         result.unwrap_or_else(|e| e.to_string()),
                     ))
                     .await
@@ -166,7 +174,11 @@ impl HostedProcess {
         }
     }
 
-    async fn poll_for_exit_code(child: Arc<Mutex<Child>>, output: &mut Sender<Message>) {
+    async fn poll_for_exit_code(
+        process_id: usize,
+        child: Arc<Mutex<Child>>,
+        output: &mut Sender<Message>,
+    ) {
         loop {
             let exit = {
                 let mut a = child.lock().unwrap();
@@ -175,10 +187,10 @@ impl HostedProcess {
                     Ok(s) => match s {
                         Some(status) => {
                             output
-                                .send(Message::ProcessOutput(format!(
-                                    "process exited with code {}",
-                                    status
-                                )))
+                                .send(Message::ProcessOutput(
+                                    process_id,
+                                    format!("process exited with code {}", status),
+                                ))
                                 .await
                                 .unwrap();
                             Some(status)

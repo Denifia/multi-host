@@ -9,23 +9,31 @@ use std::fmt::Write;
 #[derive(Debug)]
 pub struct HomeScreen {
     pub hosted_processes: Vec<HostedProcess>,
+    pub focused_process: usize,
 }
 
 impl HomeScreen {
     pub fn new() -> Self {
         Self {
-            hosted_processes: vec![HostedProcess::new("process one".to_owned())],
+            hosted_processes: vec![
+                HostedProcess::new("process one".to_owned()),
+                HostedProcess::new("process 2".to_owned()),
+            ],
+            focused_process: 0,
         }
     }
 
-    pub fn start_stop(&mut self, sender: &Sender<Message>, id: usize) -> Task<Message> {
-        let process = &mut self.hosted_processes[id];
+    pub fn start_stop(&mut self, process_id: usize, sender: &Sender<Message>) -> Task<Message> {
+        self.focused_process = process_id;
+        let process = &mut self.hosted_processes[process_id];
 
         match process.status {
-            ProcessStatus::NotRun | ProcessStatus::Stopped => match process.start(sender.clone()) {
-                Ok(_) => process.run(),
-                Err(_) => writeln!(process.output, "error starting process").unwrap(),
-            },
+            ProcessStatus::NotRun | ProcessStatus::Stopped => {
+                match process.start(process_id, sender.clone()) {
+                    Ok(_) => process.run(),
+                    Err(_) => writeln!(process.output, "error starting process").unwrap(),
+                }
+            }
             ProcessStatus::Running => {
                 process.stop();
             }
@@ -36,8 +44,8 @@ impl HomeScreen {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::ProcessOutput(line) => {
-                writeln!(self.hosted_processes[0].output, "{}", line)
+            Message::ProcessOutput(process_id, line) => {
+                writeln!(self.hosted_processes[process_id].output, "{}", line)
                     .expect("appending output failed");
 
                 Task::none()
@@ -59,7 +67,7 @@ impl HomeScreen {
             .style(container::rounded_box)
             .padding(10);
 
-        let right_pane_text = text(self.hosted_processes[0].output.clone());
+        let right_pane_text = text(self.hosted_processes[self.focused_process].output.clone());
         let right_pane = scrollable(container(right_pane_text).width(FillPortion(4)).padding(10))
             .height(Fill)
             .anchor_bottom();
