@@ -2,7 +2,7 @@ use crate::hosted_process::ProcessStatus;
 use crate::{Message, Screen, hosted_process::HostedProcess};
 use iced::Length::{Fill, FillPortion};
 use iced::futures::channel::mpsc::Sender;
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Element, Subscription, Task};
 use std::fmt::Write;
 
@@ -60,10 +60,9 @@ impl HomeScreen {
             .padding(10);
 
         let right_pane_text = text(self.hosted_processes[0].output.clone());
-        let right_pane = container(right_pane_text)
-            .width(FillPortion(4))
+        let right_pane = scrollable(container(right_pane_text).width(FillPortion(4)).padding(10))
             .height(Fill)
-            .padding(10);
+            .anchor_bottom();
 
         let processes: Vec<iced::Element<Message>> = self
             .hosted_processes
