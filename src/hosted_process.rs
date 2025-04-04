@@ -1,8 +1,8 @@
 use iced::futures::channel::mpsc::{self, Sender};
 use iced::futures::executor::block_on;
 use iced::futures::{SinkExt, Stream, StreamExt};
-use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, Stdio};
+use std::io::{BufRead, BufReader, Lines};
+use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -76,6 +76,20 @@ impl HostedProcess {
         }
     }
 
+    pub fn subscribe_to_process_outputs() -> impl Stream<Item = Message> {
+        iced::stream::channel(100, |mut output| async move {
+            let (sender, mut receiver) = mpsc::channel(100);
+            output
+                .send(Message::ListeningForOutput(sender))
+                .await
+                .unwrap();
+            loop {
+                let message = receiver.select_next_some().await;
+                output.send(message).await.unwrap();
+            }
+        })
+    }
+
     pub fn start(&mut self, sender: Sender<Message>) -> Result<(), MultiHostError> {
         // todo - the process path with come from config
         let process_path = env::current_dir().map(|mut dir| {
@@ -103,67 +117,25 @@ impl HostedProcess {
             .take()
             .ok_or(MultiHostError::Simple("couldn't take stdout".to_string()))?;
 
-        let mut exit_output = sender.clone();
-
         let arc_child = Arc::new(Mutex::new(child));
+
         let exit_child = Arc::clone(&arc_child);
+        let mut exit_sender = sender.clone();
 
         // Thread to wait on the exit of the child process
         thread::spawn(move || {
-            block_on(async {
-                loop {
-                    let exit = {
-                        let mut a = exit_child.lock().unwrap();
-                        let e = a.try_wait();
-                        match e {
-                            Ok(s) => match s {
-                                Some(status) => {
-                                    exit_output
-                                        .send(Message::ProcessOutput(format!(
-                                            "process exited with code {}",
-                                            status
-                                        )))
-                                        .await
-                                        .unwrap();
-                                    Some(status)
-                                }
-                                None => None,
-                            },
-                            Err(_) => panic!("oh no"),
-                        }
-                    };
-                    match exit {
-                        Some(_) => break,
-                        None => thread::sleep(Duration::from_secs(1)),
-                    }
-                }
-            })
+            block_on(HostedProcess::poll_for_exit_code(
+                exit_child,
+                &mut exit_sender,
+            ));
         });
-
-        let mut reader: std::io::Lines<BufReader<_>> = BufReader::new(stdout).lines();
-        let mut stdout_output = sender.clone();
 
         // Thread to read the stdout of the child process
         thread::spawn(move || {
-            block_on(async {
-                loop {
-                    let should_continue: bool = match reader.next() {
-                        Some(result) => stdout_output
-                            .send(Message::ProcessOutput(
-                                result.unwrap_or_else(|e| e.to_string()),
-                            ))
-                            .await
-                            .is_ok(),
-                        None => {
-                            thread::sleep(Duration::from_secs(1));
-                            true
-                        }
-                    };
-                    if should_continue == false {
-                        break;
-                    }
-                }
-            })
+            block_on(HostedProcess::poll_for_std_output(
+                &mut BufReader::new(stdout).lines(),
+                &mut sender.clone(),
+            ))
         });
 
         self.child = Some(arc_child);
@@ -171,17 +143,55 @@ impl HostedProcess {
         Ok(())
     }
 
-    pub fn subscribe_to_process_outputs() -> impl Stream<Item = Message> {
-        iced::stream::channel(100, |mut output| async move {
-            let (sender, mut receiver) = mpsc::channel(100);
-            output
-                .send(Message::ListeningForOutput(sender))
-                .await
-                .unwrap();
-            loop {
-                let message = receiver.select_next_some().await;
-                output.send(message).await.unwrap();
+    async fn poll_for_std_output(
+        reader: &mut Lines<BufReader<ChildStdout>>,
+        output: &mut Sender<Message>,
+    ) {
+        loop {
+            let should_continue: bool = match reader.next() {
+                Some(result) => output
+                    .send(Message::ProcessOutput(
+                        result.unwrap_or_else(|e| e.to_string()),
+                    ))
+                    .await
+                    .is_ok(),
+                None => {
+                    thread::sleep(Duration::from_secs(1));
+                    true
+                }
+            };
+            if should_continue == false {
+                break;
             }
-        })
+        }
+    }
+
+    async fn poll_for_exit_code(child: Arc<Mutex<Child>>, output: &mut Sender<Message>) {
+        loop {
+            let exit = {
+                let mut a = child.lock().unwrap();
+                let e = a.try_wait();
+                match e {
+                    Ok(s) => match s {
+                        Some(status) => {
+                            output
+                                .send(Message::ProcessOutput(format!(
+                                    "process exited with code {}",
+                                    status
+                                )))
+                                .await
+                                .unwrap();
+                            Some(status)
+                        }
+                        None => None,
+                    },
+                    Err(_) => panic!("oh no"),
+                }
+            };
+            match exit {
+                Some(_) => break,
+                None => thread::sleep(Duration::from_secs(1)),
+            }
+        }
     }
 }
