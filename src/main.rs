@@ -40,6 +40,7 @@ enum Message {
     StartStopProcess(usize),
     ListeningForOutput(Sender<Message>),
     FocusProcess(usize),
+    AutoStartProcesses(Sender<Message>),
 }
 
 impl MultiHost {
@@ -62,14 +63,17 @@ impl MultiHost {
                 Some(listener) => self.home_screen.start_stop(process_id, listener),
                 None => panic!("oh no"),
             },
+            Message::AutoStartProcesses(sender) => self.home_screen.auto_start(&sender.clone()),
             Message::FocusProcess(process_id) => self.home_screen.focus(process_id),
             Message::ProcessOutput(_, _) => self.home_screen.update(message),
             Message::SettingsSettingOneUpdated(_) | Message::SaveSettings => {
                 self.settings_screen.update(message)
             }
             Message::ListeningForOutput(sender) => {
+                println!("listening for output, about to signal auto start");
+                let message = Message::AutoStartProcesses(sender.clone());
                 self.output_listener = Some(sender);
-                Task::none()
+                Task::done(message)
             }
         }
     }

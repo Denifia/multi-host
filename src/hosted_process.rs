@@ -3,6 +3,7 @@ use iced::futures::channel::mpsc::{self, Sender};
 use iced::futures::executor::block_on;
 use iced::futures::{SinkExt, Stream, StreamExt};
 use iced::widget::{button, row};
+use std::fmt::Write;
 use std::io::{BufRead, BufReader, Lines};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::Arc;
@@ -16,7 +17,7 @@ use crate::{Message, MultiHostError};
 pub struct HostedProcess {
     pub name: String,
     pub status: ProcessStatus,
-
+    auto_start_enabled: bool,
     // todo - this should be a constrained buffer of some kind
     pub output: String,
     pub display_name: String,
@@ -44,6 +45,7 @@ impl HostedProcess {
             output: String::new(),
             display_name: String::new(),
             child: None,
+            auto_start_enabled: true,
         };
         s.update_display_name();
         s
@@ -90,6 +92,17 @@ impl HostedProcess {
                 output.send(message).await.unwrap();
             }
         })
+    }
+
+    pub fn try_auto_start(&mut self, process_id: usize, sender: Sender<Message>) {
+        println!("trying to auto start {}", process_id);
+        match self.auto_start_enabled {
+            false => (),
+            true => match self.start(process_id, sender) {
+                Ok(_) => self.run(),
+                Err(_) => writeln!(self.output, "error starting process").unwrap(),
+            },
+        }
     }
 
     pub fn start(

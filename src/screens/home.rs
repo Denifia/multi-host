@@ -23,6 +23,16 @@ impl HomeScreen {
         }
     }
 
+    pub fn auto_start(&mut self, sender: &Sender<Message>) -> Task<Message> {
+        println!("auto starting processes");
+        let _ = self
+            .hosted_processes
+            .iter_mut()
+            .enumerate()
+            .for_each(|(process_id, process)| process.try_auto_start(process_id, sender.clone()));
+        Task::none()
+    }
+
     pub fn start_stop(&mut self, process_id: usize, sender: &Sender<Message>) -> Task<Message> {
         let process = &mut self.hosted_processes[process_id];
 
