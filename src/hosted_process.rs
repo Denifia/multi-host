@@ -5,6 +5,7 @@ use iced::futures::{SinkExt, Stream, StreamExt};
 use iced::widget::{button, row};
 use std::fmt::Write;
 use std::io::{BufRead, BufReader, Lines};
+use std::path::PathBuf;
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -22,6 +23,9 @@ pub struct HostedProcess {
     pub output: String,
     pub display_name: String,
     pub child: Option<Arc<Mutex<Child>>>,
+    app: String,
+    args: Vec<String>,
+    working_directory: PathBuf,
 }
 
 #[derive(Debug, PartialEq)]
@@ -46,7 +50,25 @@ impl HostedProcess {
             display_name: String::new(),
             child: None,
             auto_start_enabled: true,
+            app: "cargo".to_owned(),
+            args: vec![
+                "run".to_owned(),
+                "-q".to_owned(),
+                "--".to_owned(),
+                "--forever".to_owned(),
+            ],
+            working_directory: PathBuf::new(),
         };
+
+        // todo - the process path with come from config
+        let process_path = env::current_dir()
+            .map(|mut dir| {
+                dir.push("example-process");
+                dir
+            })
+            .unwrap();
+        s.working_directory.push(process_path);
+
         s.update_display_name();
         s
     }
@@ -110,15 +132,9 @@ impl HostedProcess {
         process_id: usize,
         sender: Sender<Message>,
     ) -> Result<(), MultiHostError> {
-        // todo - the process path with come from config
-        let process_path = env::current_dir().map(|mut dir| {
-            dir.push("example-process");
-            dir
-        })?;
-
-        let mut cmd = Command::new("cargo");
-        cmd.args(["run", "-q", "--", "--forever"])
-            .current_dir(process_path);
+        let mut cmd = Command::new(self.app.clone());
+        cmd.args(self.args.clone())
+            .current_dir(self.working_directory.clone());
 
         // todo - make sure the child process is correctly cleanup up on multi-host exit
         //cmd.kill_on_drop(true);
