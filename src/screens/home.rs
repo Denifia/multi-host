@@ -1,3 +1,4 @@
+use crate::ProcessDefinition;
 use crate::hosted_process::ProcessStatus;
 use crate::{Message, Screen, hosted_process::HostedProcess};
 use iced::Length::{Fill, FillPortion};
@@ -5,6 +6,7 @@ use iced::futures::channel::mpsc::Sender;
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Element, Subscription, Task};
 use std::fmt::Write;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct HomeScreen {
@@ -14,12 +16,12 @@ pub struct HomeScreen {
 }
 
 impl HomeScreen {
-    pub fn new() -> Self {
+    pub fn new(processes: Rc<Vec<ProcessDefinition>>) -> Self {
         Self {
-            hosted_processes: vec![
-                HostedProcess::new("process one".to_owned()),
-                HostedProcess::new("process 2".to_owned()),
-            ],
+            hosted_processes: processes
+                .iter()
+                .map(|pp| HostedProcess::new(pp.name.clone()))
+                .collect(),
             focused_process: 0,
             show_side_bar: true,
         }

@@ -4,17 +4,53 @@
 use iced::{Element, Subscription, Task, Theme, futures::channel::mpsc::Sender};
 use screens::home::HomeScreen;
 use screens::settings::SettingsScreen;
-use std::io;
+use std::fs::File;
+use std::io::Read;
+use std::rc::Rc;
+use std::{env, io};
 use thiserror::Error;
+use yaml_rust2::YamlLoader;
 
 mod hosted_process;
 mod screens;
 
 fn main() -> iced::Result {
+    let args: Vec<_> = env::args().collect();
+    let mut f = File::open(&args[1]).unwrap();
+    let mut s = String::new();
+    f.read_to_string(&mut s).unwrap();
+    let docs = YamlLoader::load_from_str(s.as_str()).unwrap();
+    let doc = &docs[0];
+
+    let process_list = doc["process"].clone();
+    let mut processes: Vec<ProcessDefinition> = vec![];
+    for process_input in process_list.into_iter() {
+        processes.push(ProcessDefinition {
+            name: process_input["name"]
+                .as_str()
+                .unwrap_or("unknown")
+                .to_string(),
+        });
+    }
+
+    let config = Configuration {
+        processes: Rc::new(processes),
+    };
+
     iced::application("Multi-Host", MultiHost::update, MultiHost::view)
         .theme(MultiHost::theme)
         .subscription(MultiHost::subscription)
-        .run_with(|| (MultiHost::new(), iced::Task::none()))
+        .run_with(|| (MultiHost::new(config), iced::Task::none()))
+}
+
+#[derive(Debug)]
+struct Configuration {
+    processes: Rc<Vec<ProcessDefinition>>,
+}
+
+#[derive(Debug)]
+struct ProcessDefinition {
+    name: String,
 }
 
 #[derive(Debug)]
@@ -23,6 +59,7 @@ struct MultiHost {
     home_screen: HomeScreen,
     settings_screen: SettingsScreen,
     output_listener: Option<Sender<Message>>,
+    configuration: Rc<Configuration>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -45,10 +82,12 @@ enum Message {
 }
 
 impl MultiHost {
-    fn new() -> Self {
+    fn new(config: Configuration) -> Self {
+        let p = Rc::clone(&config.processes);
         Self {
+            configuration: Rc::new(config),
             current_screen: Screen::Home,
-            home_screen: HomeScreen::new(),
+            home_screen: HomeScreen::new(p),
             settings_screen: SettingsScreen::new(),
             output_listener: None,
         }

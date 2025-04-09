@@ -1,0 +1,16 @@
+# Create references for values that will be used
+# repeatedly throughout the config
+anchors:
+- &P3 process 3
+
+# Processes to host
+process:
+- name: my cool thing
+  exe: cargo
+  cwd:
+- name: process 2
+  exe: cargo
+  cwd:
+- name: *P3
+  exe: cargo
+  cwd:
