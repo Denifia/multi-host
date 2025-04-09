@@ -10,6 +10,7 @@ use std::fmt::Write;
 pub struct HomeScreen {
     pub hosted_processes: Vec<HostedProcess>,
     pub focused_process: usize,
+    show_side_bar: bool,
 }
 
 impl HomeScreen {
@@ -20,6 +21,7 @@ impl HomeScreen {
                 HostedProcess::new("process 2".to_owned()),
             ],
             focused_process: 0,
+            show_side_bar: true,
         }
     }
 
@@ -71,7 +73,12 @@ impl HomeScreen {
 
     pub fn view(&self) -> Element<Message> {
         let settings_button = button("Settings").on_press(Message::ChangeScreen(Screen::Settings));
-        let top_pane = container(settings_button)
+        let sidebar_text = match self.show_side_bar {
+            true => "<<",
+            false => ">>",
+        };
+        let sidebar_toggle_button = button(sidebar_text).on_press(Message::ToggleHomeSideBar);
+        let top_pane = container(row!(sidebar_toggle_button, settings_button))
             .width(Fill)
             .style(container::rounded_box)
             .padding(10);
@@ -81,6 +88,7 @@ impl HomeScreen {
             .height(Fill)
             .anchor_bottom();
 
+        // TODO: only do this work if sidebar is enabled
         let processes: Vec<iced::Element<Message>> = self
             .hosted_processes
             .iter()
@@ -97,10 +105,12 @@ impl HomeScreen {
                 .padding(0),
         );
 
-        let middle_pane = row!(left_pane, right_pane)
-            .width(Fill)
-            .height(Fill)
-            .spacing(10);
+        let mut middle_pane = row!().width(Fill).height(Fill).spacing(10);
+        middle_pane = match self.show_side_bar {
+            true => middle_pane.push(left_pane),
+            false => middle_pane,
+        };
+        middle_pane = middle_pane.push(right_pane);
 
         let bottom_pane_text = text("bottom pane");
         let bottom_pane = container(bottom_pane_text)
@@ -129,6 +139,11 @@ impl HomeScreen {
 
     pub fn focus(&mut self, process_id: usize) -> Task<Message> {
         self.focused_process = process_id;
+        Task::none()
+    }
+
+    pub fn toggle_side_bar(&mut self) -> Task<Message> {
+        self.show_side_bar = !self.show_side_bar;
         Task::none()
     }
 }
