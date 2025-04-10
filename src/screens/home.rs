@@ -20,7 +20,7 @@ impl HomeScreen {
         Self {
             hosted_processes: processes
                 .iter()
-                .map(|pp| HostedProcess::new(pp.name.clone()))
+                .map(|pp| HostedProcess::new(pp.clone()))
                 .collect(),
             focused_process: 0,
             show_side_bar: true,

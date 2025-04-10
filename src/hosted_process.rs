@@ -12,7 +12,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 use std::{env, fmt, thread};
 
-use crate::{Message, MultiHostError};
+use crate::{Message, MultiHostError, ProcessDefinition};
 
 #[derive(Debug)]
 pub struct HostedProcess {
@@ -42,22 +42,17 @@ impl fmt::Display for HostedProcess {
 }
 
 impl HostedProcess {
-    pub fn new(name: String) -> HostedProcess {
+    pub fn new(config: ProcessDefinition) -> HostedProcess {
         let mut s = Self {
-            name,
+            name: config.name,
             status: ProcessStatus::NotRun,
             output: String::new(),
             display_name: String::new(),
             child: None,
-            auto_start_enabled: true,
-            app: "cargo".to_owned(),
-            args: vec![
-                "run".to_owned(),
-                "-q".to_owned(),
-                "--".to_owned(),
-                "--forever".to_owned(),
-            ],
-            working_directory: PathBuf::new(),
+            auto_start_enabled: config.auto_start,
+            app: config.command,
+            args: config.args,
+            working_directory: PathBuf::from(config.cwd),
         };
 
         // todo - the process path with come from config

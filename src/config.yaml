@@ -1,16 +1,24 @@
 # Create references for values that will be used
 # repeatedly throughout the config
 anchors:
-- &P3 process 3
+- &cargo cargo
+- &example-process ~/dev/multi-host/example-process/
+- &args ["run", "-q", "--", "--forever"]
 
 # Processes to host
 process:
-- name: my cool thing
-  exe: cargo
-  cwd:
-- name: process 2
-  exe: cargo
-  cwd:
-- name: *P3
-  exe: cargo
-  cwd:
+- name: process A
+  exe: *cargo
+  cwd: *example-process
+  args: *args
+  auto_start: true
+- name: process B
+  exe: *cargo
+  cwd: *example-process
+  args: *args
+  auto_start: true
+- name: process C
+  exe: *cargo
+  cwd: *example-process
+  args: *args
+  auto_start: true

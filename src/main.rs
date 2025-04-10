@@ -30,6 +30,20 @@ fn main() -> iced::Result {
                 .as_str()
                 .unwrap_or("unknown")
                 .to_string(),
+            command: process_input["exe"]
+                .as_str()
+                .expect("process should have exe")
+                .to_string(),
+            cwd: process_input["cwd"]
+                .as_str()
+                .expect("process should have cwd")
+                .to_string(),
+            args: process_input["args"]
+                .clone()
+                .into_iter()
+                .map(|i| i.as_str().expect("process should have args").to_string())
+                .collect(),
+            auto_start: process_input["auto_start"].as_bool().unwrap_or(false),
         });
     }
 
@@ -48,9 +62,13 @@ struct Configuration {
     processes: Rc<Vec<ProcessDefinition>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ProcessDefinition {
     name: String,
+    command: String,
+    cwd: String,
+    args: Vec<String>,
+    auto_start: bool,
 }
 
 #[derive(Debug)]
