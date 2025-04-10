@@ -101,11 +101,10 @@ enum Message {
 
 impl MultiHost {
     fn new(config: Configuration) -> Self {
-        let p = Rc::clone(&config.processes);
         Self {
-            configuration: Rc::new(config),
             current_screen: Screen::Home,
-            home_screen: HomeScreen::new(p),
+            home_screen: HomeScreen::new(Rc::clone(&config.processes)),
+            configuration: Rc::new(config),
             settings_screen: SettingsScreen::new(),
             output_listener: None,
         }

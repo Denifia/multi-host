@@ -20,7 +20,7 @@ impl HomeScreen {
         Self {
             hosted_processes: processes
                 .iter()
-                .map(|pp| HostedProcess::new(pp.clone()))
+                .map(|process_definition| HostedProcess::new(process_definition.clone()))
                 .collect(),
             focused_process: 0,
             show_side_bar: true,
@@ -28,7 +28,6 @@ impl HomeScreen {
     }
 
     pub fn auto_start(&mut self, sender: &Sender<Message>) -> Task<Message> {
-        println!("auto starting processes");
         let _ = self
             .hosted_processes
             .iter_mut()

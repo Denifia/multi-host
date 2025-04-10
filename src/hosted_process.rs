@@ -6,7 +6,7 @@ use iced::widget::{button, row};
 use std::fmt::Write;
 use std::io::{BufRead, BufReader, Lines};
 use std::path::PathBuf;
-use std::process::{Child, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStderr, ChildStdout, Command, Stdio};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -35,6 +35,17 @@ pub enum ProcessStatus {
     Stopped,
 }
 
+impl fmt::Display for ProcessStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status = match self {
+            ProcessStatus::NotRun => "not run",
+            ProcessStatus::Running => "running",
+            ProcessStatus::Stopped => "stopped",
+        };
+        write!(f, "{}", status)
+    }
+}
+
 impl fmt::Display for HostedProcess {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.display_name)
@@ -43,39 +54,27 @@ impl fmt::Display for HostedProcess {
 
 impl HostedProcess {
     pub fn new(config: ProcessDefinition) -> HostedProcess {
-        let mut s = Self {
+        let status = ProcessStatus::NotRun;
+        let display_name = HostedProcess::display_name(config.name.as_str(), &status);
+        Self {
             name: config.name,
-            status: ProcessStatus::NotRun,
+            status,
             output: String::new(),
-            display_name: String::new(),
+            display_name,
             child: None,
             auto_start_enabled: config.auto_start,
             app: config.command,
             args: config.args,
             working_directory: PathBuf::from(config.cwd),
-        };
-
-        // todo - the process path with come from config
-        let process_path = env::current_dir()
-            .map(|mut dir| {
-                dir.push("example-process");
-                dir
-            })
-            .unwrap();
-        s.working_directory.push(process_path);
-
-        s.update_display_name();
-        s
+        }
     }
 
     fn update_display_name(&mut self) {
-        let status = match self.status {
-            ProcessStatus::NotRun => "not run",
-            ProcessStatus::Running => "running",
-            ProcessStatus::Stopped => "stopped",
-        };
+        self.display_name = HostedProcess::display_name(self.name.as_str(), &self.status);
+    }
 
-        self.display_name = format!("{} ({})", self.name, status);
+    fn display_name(name: &str, status: &ProcessStatus) -> String {
+        format!("{} ({})", name, status)
     }
 
     pub fn run(&mut self) {
@@ -112,12 +111,11 @@ impl HostedProcess {
     }
 
     pub fn try_auto_start(&mut self, process_id: usize, sender: Sender<Message>) {
-        println!("trying to auto start {}", process_id);
         match self.auto_start_enabled {
             false => (),
             true => match self.start(process_id, sender) {
                 Ok(_) => self.run(),
-                Err(_) => writeln!(self.output, "error starting process").unwrap(),
+                Err(e) => writeln!(self.output, "error starting process {:?}", e).unwrap(),
             },
         }
     }
@@ -128,8 +126,17 @@ impl HostedProcess {
         sender: Sender<Message>,
     ) -> Result<(), MultiHostError> {
         let mut cmd = Command::new(self.app.clone());
-        cmd.args(self.args.clone())
-            .current_dir(self.working_directory.clone());
+
+        cmd.args(self.args.clone());
+        cmd.current_dir(self.working_directory.clone());
+
+        // todo - support light blue
+        // let config_path = format!("{}.config", self.app);
+        // cmd.env("LightBlueRunMode", "process");
+        // cmd.env("LightBlueHost", "true");
+        // cmd.env("LightBlueConfigurationPath", config_path);
+        // cmd.env("LightBlueRoleName", self.name.clone());
+        // cmd.env("LightBlueUseHostedStorage", "true");
 
         // todo - make sure the child process is correctly cleanup up on multi-host exit
         //cmd.kill_on_drop(true);
@@ -147,6 +154,11 @@ impl HostedProcess {
             .take()
             .ok_or(MultiHostError::Simple("couldn't take stdout".to_string()))?;
 
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or(MultiHostError::Simple("couldn't take stderr".to_string()))?;
+
         let arc_child = Arc::new(Mutex::new(child));
 
         let exit_child = Arc::clone(&arc_child);
@@ -162,10 +174,20 @@ impl HostedProcess {
         });
 
         // Thread to read the stdout of the child process
+        let mut output_sender = sender.clone();
         thread::spawn(move || {
             block_on(HostedProcess::poll_for_std_output(
                 process_id,
                 &mut BufReader::new(stdout).lines(),
+                &mut output_sender,
+            ))
+        });
+
+        // Thread to read the stderr of the child process
+        thread::spawn(move || {
+            block_on(HostedProcess::poll_for_std_error(
+                process_id,
+                &mut BufReader::new(stderr).lines(),
                 &mut sender.clone(),
             ))
         });
@@ -201,11 +223,18 @@ impl HostedProcess {
 
     async fn poll_for_std_output(
         process_id: usize,
-        reader: &mut Lines<BufReader<ChildStdout>>,
+        stdout_reader: &mut Lines<BufReader<ChildStdout>>,
         output: &mut Sender<Message>,
     ) {
+        let _ = output
+            .send(Message::ProcessOutput(
+                process_id,
+                "process starting...".to_string(),
+            ))
+            .await;
+
         loop {
-            let should_continue: bool = match reader.next() {
+            let stdout_ok: bool = match stdout_reader.next() {
                 Some(result) => output
                     .send(Message::ProcessOutput(
                         process_id,
@@ -213,13 +242,38 @@ impl HostedProcess {
                     ))
                     .await
                     .is_ok(),
-                None => {
-                    thread::sleep(Duration::from_secs(1));
-                    true
-                }
+                _ => true,
             };
-            if should_continue == false {
+
+            if stdout_ok == false {
                 break;
+            } else {
+                thread::sleep(Duration::from_secs(1));
+            }
+        }
+    }
+
+    async fn poll_for_std_error(
+        process_id: usize,
+        stderr_reader: &mut Lines<BufReader<ChildStderr>>,
+        output: &mut Sender<Message>,
+    ) {
+        loop {
+            let stderr_ok: bool = match stderr_reader.next() {
+                Some(err) => output
+                    .send(Message::ProcessOutput(
+                        process_id,
+                        err.unwrap_or_else(|e| e.to_string()),
+                    ))
+                    .await
+                    .is_ok(),
+                _ => true,
+            };
+
+            if stderr_ok == false {
+                break;
+            } else {
+                thread::sleep(Duration::from_secs(1));
             }
         }
     }
@@ -231,10 +285,9 @@ impl HostedProcess {
     ) {
         loop {
             let exit = {
-                let mut a = child.lock().unwrap();
-                let e = a.try_wait();
-                match e {
-                    Ok(s) => match s {
+                let mut child = child.lock().unwrap();
+                match child.try_wait() {
+                    Ok(optional_status) => match optional_status {
                         Some(status) => {
                             output
                                 .send(Message::ProcessOutput(
